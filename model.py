@@ -7,6 +7,8 @@ from catboost import CatBoostRegressor as cat
 from plotly.offline import plot
 import plotly.graph_objs as go
 from django.shortcuts import render
+from datetime import datetime  
+
 
 
 class LSTM(nn.Module):
@@ -148,13 +150,14 @@ class Tree(object):
             
             except:
                 print('Unknown exception happened\nExit....')
-    def forward(self, speed, direction):
+    
+     def forward(self, speed, direction):
         df = pd.DataFrame({'Wind Speed (m/s)':speed, 'Wind Direction (°)': direction})
         power = self.model.predict(df).tolist()
         return power
 
 
-def get_speed():
+def get_speed():				#current speed
     from pyowm.owm import OWM
     owm = OWM('8f1b9a3225495a9c8a89cb7ff7848c08')
     mgr = owm.weather_manager()
@@ -186,10 +189,15 @@ def graph(speed: float = 10.0, direction:float = 180.0, n_steps:int = 40):
                         mode='lines', 
                         opacity=0.8, marker_color='red')],
                output_type='div')
- 
-    
-    
-    return plot_div
+ 	fig.update_layout(	height=800,
+						title_text=f'Power Output Forecast for next {nsteps//6} hrs.{nsteps%6} mins '
+								)
+    max_p = max(power)
+	
+	best_n = np.argmax(speed)
+	params = { 'max_p': max_p, 'best_n':best_n}
+	
+    return plot_div, params
   
     
     
@@ -199,9 +207,23 @@ def graph(speed: float = 10.0, direction:float = 180.0, n_steps:int = 40):
 def in_out(nsteps: int = 10):
     speed = get_speed()
     direction = 180.0
-    grph = graph(speed, direction, n_steps = nsteps)
+    grph, _ = graph(speed, direction, n_steps = nsteps)
     return grph
 
+def max_power(nsteps:int = 10):
+	speed = get_speed()
+    direction = 180.0
+    grph, params = graph(speed, direction, n_steps = nsteps)
+    return params['max_p']
 
-    
-    
+def best_time(nsteps:int = 10):
+	speed = get_speed()
+    direction = 180.0
+    grph, params = graph(speed, direction, n_steps = nsteps)
+    t = params['best_n']
+	now = datetime.datetime.now()
+	now_plus_10 = now + datetime.timedelta(minutes = 10*(t+1))
+	return now_plus_10
+
+   
+
