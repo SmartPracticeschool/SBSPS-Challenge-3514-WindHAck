@@ -189,9 +189,7 @@ def graph(speed: float = 10.0, direction:float = 180.0, n_steps:int = 40):
                         mode='lines', 
                         opacity=0.8, marker_color='red')],
                output_type='div')
- 	fig.update_layout(	height=800,
-						title_text=f'Power Output Forecast for next {nsteps//6} hrs.{nsteps%6} mins '
-								)
+    plot_div.update_layout(height=800,title_text=f'Power Output Forecast for next {nsteps//6} hrs.{nsteps%6} mins ')
     max_p = max(power)
 	
 	best_n = np.argmax(speed)
