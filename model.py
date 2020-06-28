@@ -1,42 +1,40 @@
-import torch 
-from torch import nn
+import os
+
 import numpy as np
 import pandas as pd
-import os
-from catboost import CatBoostRegressor as cat
-from plotly.offline import plot
 import plotly.graph_objs as go
+import torch
+from catboost import CatBoostRegressor as cat
 from django.shortcuts import render
-from datetime import datetime  
-
+from plotly.offline import plot
+from torch import nn
+from plotly.offline import plot
+from plotly.graph_objs import Scatter
 
 
 class LSTM(nn.Module):
-	r"""
-	Model class for LSTM module using torch.nn.LSTM module
-	This will be trained for time-series forecasting.
-	"""
-    def __init__(self, input_dim = 2, 
-                 hidden_dim = 100, num_layers = 2, 
-                 output_dim = 2 , 
-                 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
-		r"""
-		-input_dim = 	Input dimension for LSTM network.
-						Default 2 (For Speed and Direction)
-		-hidden_dim = 	Hidden dimension for LSTM network.
-					  	Default 100.
-		-output_dim = 	Output dimension for LSTM network.
-						Default 2 (For Speed and Direction).
-		-num)layers = 	No. of iteration that will be performed on each example.
-		-device = 		Torch device for storing model class and related variables.
-						Default device will be enabled by system according to availability.
-		"""
+    r"""
+            Model class for LSTM module using torch.nn.LSTM module
+            This will be trained for time-series forecasting.
+            """
+    def __init__(self, input_dim = 2, hidden_dim = 100, num_layers = 2, output_dim = 2 ) :
+        """
+        -input_dim =     Input dimension for LSTM network.
+                        Default 2 (For Speed and Direction)
+        -hidden_dim =     Hidden dimension for LSTM network.
+                        Default 100.
+        -output_dim =     Output dimension for LSTM network.
+                        Default 2 (For Speed and Direction).
+        -num)layers =     No. of iteration that will be performed on each example.
+        -device =         Torch device for storing model class and related variables.
+                        Default device will be enabled by system according to availability.
+        """
         super(LSTM, self).__init__()
         # Hidden dimensions
         self.hidden_dim = hidden_dim
-
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         # Number of hidden layers
-		
+        
         self.num_layers = num_layers
         self.device = device
         # Building your LSTM
@@ -65,11 +63,11 @@ class LSTM(nn.Module):
         out = self.fc(out[:, -1, :]) 
         # out.size() --> 100, 10
         return out
-	
+    
 def get_model(checkpoint = 'weights.pth'):
     r"""
-    -checkpoint : 	Path to model's state_dict(weights)
-					Default - 'weights.pth'
+    -checkpoint :     Path to model's state_dict(weights)
+                    Default - 'weights.pth'
     """
     model = LSTM(input_dim = 2, hidden_dim = 100, num_layers = 2, output_dim = 2 )
     if checkpoint is not None:
@@ -86,29 +84,29 @@ def get_model(checkpoint = 'weights.pth'):
 
 class Predictor(nn.Module):
     r"""
-	This class instantiates an model instance and predicts upcoming speed and direction.
-	"""
+    This class instantiates an model instance and predicts upcoming speed and direction.
+    """
     def __init__(self, model):
-		r"""
-		-model = 	Model object which will forecast speed and direction.
-		"""
-        super(predictor, self).__init__()
+        r"""
+        -model =     Model object which will forecast speed and direction.
+        """
+        super(Predictor, self).__init__()
         self.lstm = model.lstm
         self.fc = model.fc
         self.device = next(model.parameters()).device
         self.model = model.cpu() 
     
     def predict(self, x, steps:int = 10, reduce:bool = True):
-		r"""
-		-x = torch.tensor
-		-steps = 	No. of future predictions to be made.
-					int
-					Default 10.
-		-reduce =	Whether to reduce inputs
-					(Divide by constants -> speed(25)
-										 -> direction(360))
-										 
-		"""
+        r"""
+        -x = torch.tensor
+        -steps =     No. of future predictions to be made.
+                    int
+                    Default 10.
+        -reduce =    Whether to reduce inputs
+                    (Divide by constants -> speed(25)
+                                         -> direction(360))
+                                         
+        """
         try:
             x = x.view(1, -1, 2)
         except:
@@ -135,12 +133,12 @@ class Predictor(nn.Module):
 
 class Tree(object):
     def __init__(self, checkpoint = 'regressor.cbm'):
-		r"""
-		Tree class which will predict energy output from wind speed and direction.
-		-checkpoint = 	Path for saved model.
-						type:	 str
-						Default: 'regressor.cbm'
-		"""
+        r"""
+        Tree class which will predict energy output from wind speed and direction.
+        -checkpoint =     Path for saved model.
+                        type:     str
+                        Default: 'regressor.cbm'
+        """
         self.model = cat()
         if checkpoint is not None:
             try:
@@ -150,16 +148,15 @@ class Tree(object):
             
             except:
                 print('Unknown exception happened\nExit....')
-    
-     def forward(self, speed, direction):
+    def forward(self, speed, direction):
         df = pd.DataFrame({'Wind Speed (m/s)':speed, 'Wind Direction (°)': direction})
         power = self.model.predict(df).tolist()
         return power
 
 
-def get_speed():				#current speed
+def get_speed():
     from pyowm.owm import OWM
-    owm = OWM('8f1b9a3225495a9c8a89cb7ff7848c08')
+    owm = OWM(API_KEY) 
     mgr = owm.weather_manager()
     observation = mgr.weather_at_place('Tokyo,JP')
     wind_dict_in_meters_per_sec = observation.weather.wind()   # Default unit: 'meters_sec'
@@ -177,6 +174,11 @@ def graph(speed: float = 10.0, direction:float = 180.0, n_steps:int = 40):
     -direction = initial Wind Direction (°).
     -n_steps = no of predictions to be made.
     """
+    from plotly.offline import plot
+    import plotly.graph_objs as go
+
+    fig = go.Figure()
+
     lstm = get_model()
     predictor = Predictor(lstm)
     x = torch.Tensor([speed/25, direction/360])
@@ -185,17 +187,31 @@ def graph(speed: float = 10.0, direction:float = 180.0, n_steps:int = 40):
     power = tree.forward(speed, direction)
     if type(power) != list:
         power = [ i for i in power]
-    plot_div = plot([Scatter(x=np.arange(len(power)), y=power,
-                        mode='lines', 
-                        opacity=0.8, marker_color='red')],
-               output_type='div')
-    plot_div.update_layout(height=800,title_text=f'Power Output Forecast for next {nsteps//6} hrs.{nsteps%6} mins ')
-    max_p = max(power)
-	
-	best_n = np.argmax(speed)
-	params = { 'max_p': max_p, 'best_n':best_n}
-	
-    return plot_div, params
+    scatter = go.Scatter(x=np.arange(len(power)), y=power,
+                         mode='lines', name='Power Forecast',
+                         opacity=1.0, marker_color='red') 
+    
+    fig.add_trace(scatter)
+    fig.update_layout(    title={
+                                'text': f'Power output(kWh) forecast for next {n_steps//6} hrs',
+                                'y':0.9,
+                                'x':0.5,
+                                'xanchor': 'center',
+                                'yanchor': 'top'}, 
+                        xaxis_title="Time",
+                        yaxis_title="Power(kWh)",
+                        font=dict(
+                            family="Courier New, monospace",
+                            size=18,
+                            color="#000000"
+                        )
+                    )
+
+    plt_div = plot(fig, output_type='div')
+
+    
+    
+    return plt_div
   
     
     
@@ -205,23 +221,5 @@ def graph(speed: float = 10.0, direction:float = 180.0, n_steps:int = 40):
 def in_out(nsteps: int = 10):
     speed = get_speed()
     direction = 180.0
-    grph, _ = graph(speed, direction, n_steps = nsteps)
+    grph = graph(speed, direction, n_steps = nsteps)
     return grph
-
-def max_power(nsteps:int = 10):
-	speed = get_speed()
-    direction = 180.0
-    grph, params = graph(speed, direction, n_steps = nsteps)
-    return params['max_p']
-
-def best_time(nsteps:int = 10):
-	speed = get_speed()
-    direction = 180.0
-    grph, params = graph(speed, direction, n_steps = nsteps)
-    t = params['best_n']
-	now = datetime.datetime.now()
-	now_plus_10 = now + datetime.timedelta(minutes = 10*(t+1))
-	return now_plus_10
-
-   
-
