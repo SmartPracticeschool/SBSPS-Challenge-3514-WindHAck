@@ -156,9 +156,9 @@ class Tree(object):
 
 def get_speed():
     from pyowm.owm import OWM
-    owm = OWM(API_KEY) 
+    owm = OWM('8f1b9a3225495a9c8a89cb7ff7848c08') 
     mgr = owm.weather_manager()
-    observation = mgr.weather_at_place('Tokyo,JP')
+    observation = mgr.weather_at_place('New Delhi,IN')
     wind_dict_in_meters_per_sec = observation.weather.wind()   # Default unit: 'meters_sec'
     speed = wind_dict_in_meters_per_sec['speed']
     speed = float(speed)
@@ -201,17 +201,15 @@ def graph(speed: float = 10.0, direction:float = 180.0, n_steps:int = 40):
                         xaxis_title="Time",
                         yaxis_title="Power(kWh)",
                         font=dict(
-                            family="Courier New, monospace",
-                            size=18,
+                            family="Roboto, monospace",
+                            size=10,
                             color="#000000"
                         )
                     )
 
     plt_div = plot(fig, output_type='div')
 
-    
-    
-    return plt_div
+    return plt_div, max(power), np.argmax(power)
   
     
     
